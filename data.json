@@ -1,0 +1,234 @@
+{
+  "project": "multi-agent-demo",
+  "start_time": "2026-07-10T09:00:00Z",
+  "trace": {
+    "name": "Supervisor Agent",
+    "run_type": "chain",
+    "duration": 0.2,
+    "tags": ["supervisor", "orchestrator", "prod"],
+    "metadata": {"agent_role": "supervisor", "run_kind": "end_to_end_demo"},
+    "inputs": {
+      "query": "We're a mid-size US automaker. Analyze the EV competitive landscape in Europe and recommend a market-entry strategy for 2027."
+    },
+    "outputs": {
+      "answer": "Recommended 2027 EU market-entry strategy: enter via Germany and the Netherlands first (highest EV adoption + charging density), position in the mid-price C-segment to undercut VW ID.3/ID.4 by ~8%, partner with Ionity for charging, and localize battery assembly in Hungary to qualify for EU content incentives. Phase into France/Nordics in H2-2027 once brand awareness is established.",
+      "iterations": 2,
+      "agents_used": ["research", "analysis", "report_writer"],
+      "approved": true
+    },
+    "children": [
+      {
+        "name": "Supervisor: Plan & Route",
+        "run_type": "llm",
+        "duration": 1.2,
+        "tags": ["supervisor", "planning"],
+        "metadata": {"ls_provider": "openai", "ls_model_name": "gpt-4o", "input_tokens": 420, "output_tokens": 96, "total_tokens": 516, "step": "plan"},
+        "inputs": {
+          "messages": [
+            {"role": "system", "content": "You orchestrate 3 specialist agents."},
+            {"role": "user", "content": "We're a mid-size US automaker. Analyze the EV competitive landscape in Europe and recommend a market-entry strategy for 2027."}
+          ]
+        },
+        "outputs": {
+          "role": "assistant",
+          "content": "Plan: 1) Research EU EV market 2) Analyze competition & sizing 3) Write strategy report. Route first to Research Agent.",
+          "route_to": "research_agent"
+        }
+      },
+      {
+        "name": "Research Agent",
+        "run_type": "chain",
+        "duration": 0.3,
+        "tags": ["main-agent", "research", "iteration-1"],
+        "metadata": {"agent_role": "main", "parent": "supervisor", "iteration": 1},
+        "inputs": {"task": "Gather EV market data for Europe (demand, players, charging infra)."},
+        "outputs": {
+          "summary": "EU EV market is large and fast-growing; DE=volume, NO/NL=penetration; charging infra strong in DE/NL. Sources validated.",
+          "confidence": 0.82
+        },
+        "children": [
+          {
+            "name": "Web Search Sub-Agent",
+            "run_type": "tool",
+            "duration": 2.4,
+            "tags": ["sub-agent", "research"],
+            "metadata": {"agent_role": "sub", "parent": "research_agent"},
+            "inputs": {"tool": "web_search", "query": "Europe EV sales 2025 2026 by country market share"},
+            "outputs": {
+              "results": [
+                "EU BEV share of new cars ~16% in 2025; Norway >80%.",
+                "Top OEMs: Tesla, VW Group, Stellantis, BMW, Hyundai-Kia.",
+                "Germany largest volume market; Norway/NL highest penetration."
+              ]
+            }
+          },
+          {
+            "name": "Document Retrieval Sub-Agent",
+            "run_type": "retriever",
+            "duration": 1.8,
+            "tags": ["sub-agent", "research"],
+            "metadata": {"agent_role": "sub", "parent": "research_agent"},
+            "inputs": {"query": "EU charging infrastructure density 2026 report"},
+            "outputs": {
+              "documents": [
+                {"source": "ACEA-2026.pdf", "snippet": "~630k public charge points in EU."},
+                {"source": "IEA-EV-Outlook.pdf", "snippet": "NL & DE lead fast-charger rollout."}
+              ]
+            }
+          },
+          {
+            "name": "Source Validator Sub-Agent",
+            "run_type": "chain",
+            "duration": 1.1,
+            "tags": ["sub-agent", "research"],
+            "metadata": {"agent_role": "sub", "parent": "research_agent"},
+            "inputs": {"claims": ["EU BEV share ~16%", "630k public charge points"]},
+            "outputs": {"validated": true, "notes": "Cross-checked ACEA + IEA; figures consistent."}
+          }
+        ]
+      },
+      {
+        "name": "Supervisor: Review Research",
+        "run_type": "llm",
+        "duration": 0.9,
+        "tags": ["supervisor", "review"],
+        "metadata": {"ls_provider": "openai", "ls_model_name": "gpt-4o", "input_tokens": 512, "output_tokens": 60, "total_tokens": 572, "step": "review", "decision": "proceed"},
+        "inputs": {"messages": [{"role": "user", "content": "Is the research sufficient to analyze?"}]},
+        "outputs": {"role": "assistant", "content": "Research solid. Route to Analysis Agent.", "route_to": "analysis_agent"}
+      },
+      {
+        "name": "Analysis Agent",
+        "run_type": "chain",
+        "duration": 0.3,
+        "tags": ["main-agent", "analysis"],
+        "metadata": {"agent_role": "main", "parent": "supervisor"},
+        "inputs": {"task": "Size the market and benchmark competitors."},
+        "outputs": {
+          "finding": "Room in mid-price C-segment (~€38k) with charging-network partnership; MG owns bottom, VW/Tesla own premium-mid.",
+          "confidence": 0.7
+        },
+        "children": [
+          {
+            "name": "Market Sizing Sub-Agent",
+            "run_type": "tool",
+            "duration": 2.0,
+            "tags": ["sub-agent", "analysis"],
+            "metadata": {"agent_role": "sub", "parent": "analysis_agent"},
+            "inputs": {"tool": "market_model", "params": {"region": "EU", "segment": "C-segment BEV", "year": 2027}},
+            "outputs": {"tam_units_2027": 2100000, "serviceable_units": 340000, "avg_price_eur": 38500}
+          },
+          {
+            "name": "Competitor Benchmarking Sub-Agent",
+            "run_type": "chain",
+            "duration": 1.6,
+            "tags": ["sub-agent", "analysis"],
+            "metadata": {"agent_role": "sub", "parent": "analysis_agent"},
+            "inputs": {"competitors": ["VW ID.3/ID.4", "Tesla Model 3/Y", "Renault", "MG"]},
+            "outputs": {
+              "positioning": {
+                "VW ID.3": "€40k, incumbent trust",
+                "Tesla Model 3": "€42k, tech/brand",
+                "MG": "€30k, price leader"
+              },
+              "gap": "mid-price with strong charging partnership underserved"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Supervisor: Review Analysis",
+        "run_type": "llm",
+        "duration": 1.0,
+        "tags": ["supervisor", "review", "loop-trigger"],
+        "metadata": {"ls_provider": "openai", "ls_model_name": "gpt-4o", "input_tokens": 640, "output_tokens": 78, "total_tokens": 718, "step": "review", "decision": "loop_back"},
+        "inputs": {"messages": [{"role": "user", "content": "Is the analysis complete enough to write?"}]},
+        "outputs": {
+          "role": "assistant",
+          "content": "Gap: analysis ignores EU regulatory/subsidy landscape (CO2 targets, local-content incentives). Loop back to Research Agent for a regulatory addendum before writing.",
+          "route_to": "research_agent"
+        }
+      },
+      {
+        "name": "Research Agent",
+        "run_type": "chain",
+        "duration": 0.3,
+        "tags": ["main-agent", "research", "iteration-2", "loop"],
+        "metadata": {"agent_role": "main", "parent": "supervisor", "iteration": 2},
+        "inputs": {"task": "Addendum: EU EV regulation, CO2 targets & local-content subsidy rules for 2027."},
+        "outputs": {
+          "summary": "Regulatory tailwind: tightening CO2 targets favor BEVs; local-content rules reward EU battery assembly (Hungary).",
+          "confidence": 0.86
+        },
+        "children": [
+          {
+            "name": "Web Search Sub-Agent",
+            "run_type": "tool",
+            "duration": 2.1,
+            "tags": ["sub-agent", "research"],
+            "metadata": {"agent_role": "sub", "parent": "research_agent"},
+            "inputs": {"tool": "web_search", "query": "EU 2027 CO2 fleet targets EV local content subsidy rules"},
+            "outputs": {
+              "results": [
+                "EU CO2 fleet target tightens 2025-2030; pushes OEM BEV mix.",
+                "Local battery content increasingly tied to purchase incentives.",
+                "Hungary/Poland offer EV manufacturing incentives."
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "name": "Supervisor: Review Addendum",
+        "run_type": "llm",
+        "duration": 0.8,
+        "tags": ["supervisor", "review"],
+        "metadata": {"ls_provider": "openai", "ls_model_name": "gpt-4o", "input_tokens": 700, "output_tokens": 52, "total_tokens": 752, "step": "review", "decision": "proceed"},
+        "inputs": {"messages": [{"role": "user", "content": "Do we now have enough to write?"}]},
+        "outputs": {"role": "assistant", "content": "Complete. Route to Report Writer Agent.", "route_to": "report_writer_agent"}
+      },
+      {
+        "name": "Report Writer Agent",
+        "run_type": "chain",
+        "duration": 0.3,
+        "tags": ["main-agent", "writer"],
+        "metadata": {"agent_role": "main", "parent": "supervisor"},
+        "inputs": {"task": "Draft the market-entry strategy report from research + analysis + regulatory addendum."},
+        "outputs": {"report": "Recommended 2027 EU market-entry strategy: enter via Germany and the Netherlands first (highest EV adoption + charging density), position in the mid-price C-segment to undercut VW ID.3/ID.4 by ~8%, partner with Ionity for charging, and localize battery assembly in Hungary to qualify for EU content incentives. Phase into France/Nordics in H2-2027 once brand awareness is established.", "word_count": 78},
+        "children": [
+          {
+            "name": "Drafting Sub-Agent",
+            "run_type": "llm",
+            "duration": 2.7,
+            "tags": ["sub-agent", "writer"],
+            "metadata": {"ls_provider": "openai", "ls_model_name": "gpt-4o", "input_tokens": 1180, "output_tokens": 240, "total_tokens": 1420, "agent_role": "sub"},
+            "inputs": {
+              "messages": [
+                {"role": "system", "content": "Write a concise strategy recommendation."},
+                {"role": "user", "content": "Synthesize findings into a 2027 EU entry plan."}
+              ]
+            },
+            "outputs": {"role": "assistant", "content": "Recommended 2027 EU market-entry strategy: enter via Germany and the Netherlands first (highest EV adoption + charging density), position in the mid-price C-segment to undercut VW ID.3/ID.4 by ~8%, partner with Ionity for charging, and localize battery assembly in Hungary to qualify for EU content incentives. Phase into France/Nordics in H2-2027 once brand awareness is established."}
+          },
+          {
+            "name": "Formatting & Citation Sub-Agent",
+            "run_type": "chain",
+            "duration": 1.0,
+            "tags": ["sub-agent", "writer"],
+            "metadata": {"agent_role": "sub", "parent": "report_writer_agent"},
+            "inputs": {"draft": "Recommended 2027 EU market-entry strategy...", "sources": ["ACEA-2026.pdf", "IEA-EV-Outlook.pdf"]},
+            "outputs": {"formatted": true, "citations_added": 2, "report": "Recommended 2027 EU market-entry strategy: enter via Germany and the Netherlands first (highest EV adoption + charging density), position in the mid-price C-segment to undercut VW ID.3/ID.4 by ~8%, partner with Ionity for charging, and localize battery assembly in Hungary to qualify for EU content incentives. Phase into France/Nordics in H2-2027 once brand awareness is established."}
+          }
+        ]
+      },
+      {
+        "name": "Supervisor: Final Review",
+        "run_type": "llm",
+        "duration": 0.9,
+        "tags": ["supervisor", "review", "final"],
+        "metadata": {"ls_provider": "openai", "ls_model_name": "gpt-4o", "input_tokens": 900, "output_tokens": 40, "total_tokens": 940, "step": "final_review", "decision": "approve"},
+        "inputs": {"messages": [{"role": "user", "content": "Approve the final report?"}]},
+        "outputs": {"role": "assistant", "content": "Approved. Report answers the query with data + regulatory context.", "approved": true}
+      }
+    ]
+  }
+}
